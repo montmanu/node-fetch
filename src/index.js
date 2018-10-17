@@ -40,24 +40,21 @@ export default function fetch(url, opts) {
 		// build request object
 		const request = new Request(url, opts);
 		const options = getNodeRequestOptions(request);
-
 		const send = (options.protocol === 'https:' ? https : http).request;
 
 		// send request
 		const req = send(options);
-		let reqTimeout;
 
 		function finalize() {
-			req.abort();
-			clearTimeout(reqTimeout);
+			if (!req.aborted) {
+				req.abort();
+			}
 		}
 
 		if (request.timeout) {
-			req.once('socket', socket => {
-				reqTimeout = setTimeout(() => {
-					reject(new FetchError(`network timeout at: ${request.url}`, 'request-timeout'));
-					finalize();
-				}, request.timeout);
+			req.once('timeout', (evt) => {
+				reject(new FetchError(`network timeout at: ${request.url}`, 'request-timeout'));
+				finalize();
 			});
 		}
 
@@ -67,8 +64,6 @@ export default function fetch(url, opts) {
 		});
 
 		req.on('response', res => {
-			clearTimeout(reqTimeout);
-
 			const headers = createHeadersLenient(res.headers);
 
 			// HTTP fetch step 5
